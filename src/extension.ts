@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 export function activate({ subscriptions, extensionUri }: vscode.ExtensionContext) {
-  const statusTextArray = [`$(bg-leftup)$(bg-rightup)`, `$(bg-leftdown)$(bg-rightup)`, `$(bg-leftup)$(bg-rightdown)`];
+  const statusTextArray = [`$(bg-leftup)$(bg-rightup)`, `$(bg-leftdown)$(bg-rightup)`, `$(bg-leftup)$(bg-rightdown)`, `$(bg-leftdown)$(bg-rightdown)`];
   let currentIndex = 0;
   let leftWasLastDown = false;
   let lastStateBeforeReset = currentIndex;
@@ -11,8 +11,24 @@ export function activate({ subscriptions, extensionUri }: vscode.ExtensionContex
   statusBarItem.text = `${statusTextArray[currentIndex]}`;
   statusBarItem.show();
 
+  const triggerBothPaws = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    statusBarItem.text = `${statusTextArray[3]}`;
+    timeout = setTimeout(() => {
+      currentIndex = 0;
+      statusBarItem.text = `${statusTextArray[currentIndex]}`;
+    }, 150);
+  };
+
   const onTextChanged = vscode.workspace.onDidChangeTextDocument((event) => {
     if (vscode.window.activeTextEditor && event.document === vscode.window.activeTextEditor.document) {
+      if (event.contentChanges.some(c => c.text.includes('\n'))) {
+        triggerBothPaws();
+        return;
+      }
+
       if(leftWasLastDown) {
         currentIndex = 2;
       } else {
@@ -47,5 +63,11 @@ export function activate({ subscriptions, extensionUri }: vscode.ExtensionContex
     }
   });
 
-  subscriptions.push(onTextChanged, toggleStatusBarCommand);
+  subscriptions.push(
+    onTextChanged,
+    toggleStatusBarCommand,
+    vscode.workspace.onDidSaveTextDocument(() => triggerBothPaws()),
+    vscode.debug.onDidStartDebugSession(() => triggerBothPaws()),
+    vscode.tasks.onDidStartTask(() => triggerBothPaws())
+  );
 }
